@@ -20,6 +20,8 @@ LABLES_COLUMNS = 'Atelectasis,Cardiomegaly,Consolidation,Edema,Enlarged Cardiome
                  'Lung Lesion,Lung Opacity,No Finding,Pleural Effusion,Pleural Other,Pneumonia,' \
                  'Pneumothorax,Support Devices'.split(',')
 TEXT_FEATURES_COLUMNS = [f'text_feature_{i}' for i in range(768)]
+# TEXT_TOKEN_FEATURES_COLUMNS = ['text_token_features']
+TEXT_TOKEN_FEATURES_COLUMNS = [f'text_token_features_{i}' for i in range(512 * 768)]
 
 
 class Config:
@@ -27,8 +29,45 @@ class Config:
         self.has_saps = False
         self.has_labels = False
         self.has_text_features = False
+        self.has_text_token_features = False
+        self.use_gcn = False
         self.verbose = True
         self.tte_int = False
+
+    def saps(self):
+        return self.has_saps \
+               and not self.has_labels \
+               and not self.has_text_features \
+               and not self.has_text_token_features \
+               and not self.use_gcn
+
+    def saps_labels(self):
+        return self.has_saps \
+               and self.has_labels \
+               and not self.has_text_features \
+               and not self.has_text_token_features \
+               and not self.use_gcn
+
+    def saps_text_features(self):
+        return self.has_saps \
+               and not self.has_labels \
+               and self.has_text_features \
+               and not self.has_text_token_features \
+               and not self.use_gcn
+
+    def saps_text_token_features(self):
+        return self.has_saps \
+               and not self.has_labels \
+               and not self.has_text_features \
+               and self.has_text_token_features \
+               and not self.use_gcn
+
+    def saps_text_token_features_gcn(self):
+        return self.has_saps \
+               and not self.has_labels \
+               and not self.has_text_features \
+               and self.has_text_token_features \
+               and self.use_gcn
 
 
 class Data:
@@ -46,10 +85,16 @@ class Data:
         self.y_pycox = None
         self.x_deephit = None
         self.y_deephit = None
+        self.text_token_features = None
 
     def _split(self, indices, name):
         subdata = Data(name, self.config)
         subdata.df = self.df[self.df['fold'].isin(indices)]
+        subdata.text_token_features = []
+
+        x = [i for i, fold in enumerate(self.df['fold']) if fold in indices]
+        # print(x)
+        subdata.text_token_features = self.text_token_features[x,:]
         return subdata
 
     def split3(self, fold) -> Tuple['Data', 'Data', 'Data']:
@@ -100,13 +145,30 @@ def load_data(top, config) -> Data:
         df = pd.concat([df, labels_df[LABLES_COLUMNS]], axis=1)
 
     if config.has_text_features:
-        # features
         with np.load(str(top / 'chexbert_pooling_features.npz')) as data:
-            rows = [data[str(id)][0] for id in tqdm.tqdm(tte_df['study_id'],disable=True)]
+            rows = [data[str(id)][0] for id in tqdm.tqdm(tte_df['study_id'], disable=not config.verbose)]
         text_features_df = pd.DataFrame(rows, columns=TEXT_FEATURES_COLUMNS)
         assert len(text_features_df) == len(tte_df)
         df = pd.concat([df, text_features_df], axis=1)
 
     data = Data('whole', config)
     data.df = df
+
+    if config.has_text_token_features:
+        # features
+        with np.load(str(top / 'bluebert_512x768_features.npz')) as npz_file:
+            rows = []
+            for id in tqdm.tqdm(tte_df['study_id'], disable=not config.verbose):
+                features = npz_file[str(id)]
+                features = features.flatten()
+                rows.append(features)
+        assert len(rows) == len(tte_df)
+        data.text_token_features = np.array(rows).reshape(len(tte_df), -1)
+
+        # text_features_df = pd.DataFrame(rows, columns=TEXT_TOKEN_FEATURES_COLUMNS)
+        # text_features_df = pd.DataFrame({TEXT_TOKEN_FEATURES_COLUMNS[0]: rows})
+        # assert len(text_features_df) == len(tte_df)
+        # print(text_features_df.head(2))
+        # exit(1)
+        # df = pd.concat([df, text_features_df], axis=1)
     return data
