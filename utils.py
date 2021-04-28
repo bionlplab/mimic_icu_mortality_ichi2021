@@ -3,6 +3,8 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 import tqdm
+from sklearn.model_selection import train_test_split
+from sklearn.utils import resample
 
 FOLDS = [
     ({3, 4, 5, 6, 7, 8, 9}, {2}, {0, 1}),
@@ -86,25 +88,46 @@ class Data:
         self.x_deephit = None
         self.y_deephit = None
         self.text_token_features = None
+        self.adj_matrix = None
 
-    def _split(self, indices, name):
+    def _split_fold(self, fold_indices, name):
         subdata = Data(name, self.config)
-        subdata.df = self.df[self.df['fold'].isin(indices)]
+        subdata.df = self.df[self.df['fold'].isin(fold_indices)]
         subdata.text_token_features = []
+        subdata.adj_matrix = self.adj_matrix
 
-        x = [i for i, fold in enumerate(self.df['fold']) if fold in indices]
         # print(x)
-        subdata.text_token_features = self.text_token_features[x,:]
+        if self.text_token_features is not None:
+            x = [i for i, fold in enumerate(self.df['fold']) if fold in fold_indices]
+            subdata.text_token_features = self.text_token_features[x,:]
         return subdata
 
     def split3(self, fold) -> Tuple['Data', 'Data', 'Data']:
-        return self._split(FOLDS[fold][0], 'train'), \
-               self._split(FOLDS[fold][1], 'dev'), \
-               self._split(FOLDS[fold][2], 'test')
+        return self._split_fold(FOLDS[fold][0], 'train'), \
+               self._split_fold(FOLDS[fold][1], 'dev'), \
+               self._split_fold(FOLDS[fold][2], 'test')
 
     def split2(self, fold):
-        return self._split(FOLDS[fold][0] | FOLDS[fold][1], 'train'), \
-               self._split(FOLDS[fold][2], 'test')
+        return self._split_fold(FOLDS[fold][0] | FOLDS[fold][1], 'train'), \
+               self._split_fold(FOLDS[fold][2], 'test')
+
+    def _split_instance(self, indices, name):
+        subdata = Data(name, self.config)
+        subdata.df = self.df.iloc[indices]
+        subdata.text_token_features = []
+        subdata.adj_matrix = self.adj_matrix
+        if self.text_token_features is not None:
+            subdata.text_token_features = self.text_token_features[indices, :]
+        return subdata
+
+    def bootstrap(self, random_state=1234):
+        indices = list(range(len(self.df)))
+        indices = resample(indices, random_state=random_state)
+        train_i, test_i = train_test_split(indices, test_size=0.2, random_state=random_state)
+        train_i, val_i = train_test_split(train_i, test_size=0.125, random_state=random_state)
+        return self._split_instance(train_i, 'train'), \
+               self._split_instance(val_i, 'dev'), \
+               self._split_instance(test_i, 'test')
 
     def describe(self):
         print(self.name)
@@ -154,13 +177,22 @@ def load_data(top, config) -> Data:
     data = Data('whole', config)
     data.df = df
 
+    # adj matrix
+    adj_matrix_df = pd.read_csv(top / 'kg.csv', index_col=0)
+    data.adj_matrix = adj_matrix_df.values
+    print('KG', type(data.adj_matrix), data.adj_matrix.shape)
+    if config.verbose:
+        print(data.adj_matrix)
+    # print(data.adj_matrix)
+    # exit(1)
+
     if config.has_text_token_features:
         # features
         with np.load(str(top / 'bluebert_512x768_features.npz')) as npz_file:
             rows = []
             for id in tqdm.tqdm(tte_df['study_id'], disable=not config.verbose):
                 features = npz_file[str(id)]
-                features = features.flatten()
+                # features = features.flatten()
                 rows.append(features)
         assert len(rows) == len(tte_df)
         data.text_token_features = np.array(rows).reshape(len(tte_df), -1)
@@ -171,4 +203,5 @@ def load_data(top, config) -> Data:
         # print(text_features_df.head(2))
         # exit(1)
         # df = pd.concat([df, text_features_df], axis=1)
+
     return data
