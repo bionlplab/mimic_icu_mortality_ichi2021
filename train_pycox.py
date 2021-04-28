@@ -298,7 +298,7 @@ class GCNFeatures1(nn.Module):
         return out
 
 
-def train_test_pycox(train_ds, dev_ds, test_ds):
+def train_test_pycox(train_ds, dev_ds, test_ds, temp_model_file):
     # train_ds, dev_ds, test_ds = data.split3(fold)
     for ds in (train_ds, dev_ds, test_ds):
         to_pycox(ds)
@@ -342,7 +342,7 @@ def train_test_pycox(train_ds, dev_ds, test_ds):
 
     model = CoxPH(net, tt.optim.Adam)
     model.optimizer.set_lr(0.0001)
-    callbacks = [tt.callbacks.EarlyStopping(file_path=str(top / 'foo.pt'))]
+    callbacks = [tt.callbacks.EarlyStopping(file_path=temp_model_file)]
     epochs = 250
     model.fit(train_ds.x_pycox, train_ds.y_pycox, train_batch_size, epochs, callbacks,
               shuffle=True,
@@ -362,7 +362,7 @@ def train_test_pycox(train_ds, dev_ds, test_ds):
 
 def train_test_pycox_fold(fold: int = 0):
     train_ds, dev_ds, test_ds = data.split3(fold)
-    cindex = train_test_pycox(train_ds, dev_ds, test_ds)
+    cindex = train_test_pycox(train_ds, dev_ds, test_ds, str(top / 'foo.pt'))
     print('cindex: %.4f' % cindex)
 
 
@@ -384,9 +384,9 @@ def bootstrap(data):
 
     output = top / '{}_{}.txt'.format(name, date_time)
     with open(top / output, mode='w') as file:
-        for i in tqdm.tqdm(range(20)):
+        for i in tqdm.tqdm(range(200)):
             train_ds, dev_ds, test_ds = data.bootstrap(1234)
-            cindex = train_test_pycox(train_ds, dev_ds, test_ds)
+            cindex = train_test_pycox(train_ds, dev_ds, test_ds, str(top / 'foo_{}.pt'.format(date_time)))
             file.write(str(i) + ' ' + '%.4f' % cindex + '\n')
             file.flush()
 
