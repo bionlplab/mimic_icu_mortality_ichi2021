@@ -106,8 +106,13 @@ def train_test_cctime(fold: int = 0):
     # in_features = train_ds.x_pycox.shape[1]
 
     dropout = 0.5
+<<<<<<< Updated upstream
     if config.has_saps and not config.has_labels and not config.has_text_features:
         net = MLPSAPSCoxTime(dropout)
+=======
+    if config.has_saps and not config.has_labels and not config.has_text_features and config.has_image_features:
+        net = MLPImageFeatures(dropout)
+>>>>>>> Stashed changes
     elif config.has_saps and config.has_labels and not config.has_text_features:
         net = MLPLabelsCoxTime(dropout)
     elif config.has_saps and not config.has_labels and config.has_text_features:
@@ -116,11 +121,6 @@ def train_test_cctime(fold: int = 0):
         raise KeyError
 
     model = CoxTime(net, tt.optim.Adam, labtrans=labtrans)
-
-    # lrfinder = model.lr_finder(train_ds.x_cctime, train_ds.y_cctime, train_batch_size, tolerance=2)
-    # print(lrfinder.get_best_lr())
-    # print(lrfinder.to_pandas())
-    # exit(1)
 
     model.optimizer.set_lr(0.001)
     callbacks = [tt.callbacks.EarlyStopping(file_path=str(top / 'foo.pt'))]
@@ -152,9 +152,6 @@ if __name__ == '__main__':
     config.has_saps = True
     config.has_labels = False
     config.has_text_features = True
-
-    # cindex = train_test_cctime()
-    # print('cindex: %.4f' % cindex)
 
     config.verbose = False
     for i in range(5):

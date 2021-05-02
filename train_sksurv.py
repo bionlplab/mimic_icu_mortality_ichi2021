@@ -31,9 +31,6 @@ def train_test_sksurv(fold: int = 0):
 
     for ds in (train_ds, test_ds):
         to_sksurv(ds)
-        # ds.describe()
-        # print('X sksurv shape', ds.x_sksurv.shape)
-        # print('Y sksruv shape', ds.y_sksurv.shape)
 
     model = CoxPHSurvivalAnalysis(verbose=config.verbose)
     model.fit(train_ds.x_sksurv, train_ds.y_sksurv)
@@ -54,9 +51,6 @@ if __name__ == '__main__':
     config.tte_int = True
     config.has_saps = True
     config.has_labels = True
-
-    # cindex = train_test_sksurv()
-    # print('cindex: %.4f' % cindex)
 
     config.verbose = False
     for i in range(5):
