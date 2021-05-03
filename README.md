@@ -1,4 +1,4 @@
-# An empirical study of using radiology reports andimages to improve ICU-mortality prediction
+# An empirical study of using radiology reports and images to improve ICU-mortality prediction
 
 ### Acknowledgement
 
