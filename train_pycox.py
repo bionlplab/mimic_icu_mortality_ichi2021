@@ -23,7 +23,6 @@ from utils import Data, load_data, Config, SAPS_COLUMNS, LABELS_COLUMNS, TEXT_FE
 np.random.seed(1234)
 random.seed(1234)
 
-
 def to_pycox(data: Data):
     columns = []
     if data.config.has_saps:
